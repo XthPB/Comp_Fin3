@@ -1,0 +1,77 @@
+\section*{Knock-out Barrier Options: Up and Out Call}
+
+\subsection*{1. Analytical Derivation of the Up and Out Call Price}
+
+The price of an up-and-out call option at time $t$, given that the barrier has not been breached (i.e., $\mathbb{I}_{\{M_0^t < B\}} = 1$), is the discounted expected payoff under the risk-neutral measure $\mathbb{Q}$:
+\begin{equation}
+    C(t, S_t) = e^{-r(T-t)} \mathbb{E}^{\mathbb{Q}}\left[ (S_T - K)^+ \mathbb{I}_{\{M_t^T < B\}} \Big| \mathcal{F}_t \right]
+\end{equation}
+where $M_t^T = \max_{u \in [t, T]} S_u$. To evaluate this expectation, we utilize the joint probability density function of a Brownian motion with drift and its running maximum. By applying the Reflection Principle (and Girsanov's Theorem to account for the drift $\mu = r - \sigma^2/2$), the probability mass of paths that reach the barrier $B$ and terminate at some $S_T < B$ is equivalent to the mass of unrestricted paths terminating at the reflected point $B^2/S_T$.
+
+Consequently, the up-and-out call can be statically replicated using the method of images:
+\begin{equation}
+    C_{\text{up-and-out}}(S_t, K) = C_{\text{vanilla}}(S_t, K) - C_{\text{down-and-in}}\left(\frac{B^2}{S_t}, K\right)
+\end{equation}
+Evaluating the integrals yields four distinct terms. Using the standard substitution $\delta_{\pm}^{\tau}(z) = \frac{1}{\sigma\sqrt{\tau}}\left(\ln z + \left(r \pm \frac{\sigma^2}{2}\right)\tau\right)$:
+
+\begin{enumerate}
+    \item \textbf{Truncated Vanilla Terms:} The first and third terms represent a standard Black-Scholes call, but the integration is truncated at the barrier $B$ instead of $\infty$. This yields:
+    \begin{equation*}
+        S_t \left\{ \Phi\left(\delta_+^{T-t}\left(\frac{S_t}{K}\right)\right) - \Phi\left(\delta_+^{T-t}\left(\frac{S_t}{B}\right)\right) \right\} - e^{-r(T-t)}K \left\{ \Phi\left(\delta_-^{T-t}\left(\frac{S_t}{K}\right)\right) - \Phi\left(\delta_-^{T-t}\left(\frac{S_t}{B}\right)\right) \right\}
+    \end{equation*}
+    
+    \item \textbf{Reflected Knock-out Terms:} The second and fourth terms subtract the value of the paths that hit $B$ and reverse. The fractional multiplier $(B/S_t)^{1 \pm 2r/\sigma^2}$ serves as the Radon-Nikodym derivative adjusting for the geometric drift. This yields:
+    \begin{equation*}
+        - S_t \left(\frac{B}{S_t}\right)^{1+\frac{2r}{\sigma^2}} \left\{ \Phi\left(\delta_+^{T-t}\left(\frac{B^2}{KS_t}\right)\right) - \Phi\left(\delta_+^{T-t}\left(\frac{B}{S_t}\right)\right) \right\} + \dots
+    \end{equation*}
+\end{enumerate}
+Combining these components strictly satisfies the continuous analytical pricing formula provided in Equation (5) of the assignment.
+
+\subsection*{2. Adjusted Monte Carlo Simulation and Convergence}
+
+In continuous time, the barrier $B$ is monitored constantly. However, in Monte Carlo simulations, prices are simulated at discrete intervals $\Delta t = T/m$. A discretely monitored asset may breach the barrier intraday and recover before the observation point, leading the naive discrete Monte Carlo to systematically overprice the up-and-out call.
+
+To correct this, we apply the continuity correction. The discrete option $C_m(H)$ is priced by shifting the barrier away from $S_0$ to artificially increase the knock-out probability:
+\begin{equation}
+    B_{adj} = B e^{-\beta_1 \sigma \sqrt{T/m}}
+\end{equation}
+where $\beta_1 \approx 0.5826$. Equivalently, evaluating the continuous formula at $H_{adj} = H e^{\beta_1 \sigma \sqrt{T/m}}$ approximates the discrete price.
+
+\textbf{Convergence Analysis:}
+\begin{itemize}
+    \item \textbf{Naive MC:} The error due to discrete monitoring scales at $\mathcal{O}(m^{-1/2})$. The convergence to the continuous theoretical price is extremely slow.
+    \item \textbf{Adjusted MC:} By applying the BGK shift $\beta_1 \sigma \sqrt{T/m}$, we eliminate the leading-order error term. The convergence rate accelerates significantly to $\mathcal{O}(m^{-1})$, meaning far fewer time steps are required to achieve acceptable pricing accuracy.
+\end{itemize}
+
+\subsection*{3. Implicit Discretization Scheme and Sensitivities}
+
+To price the barrier option using PDE methods, we solve the Black-Scholes PDE backward in time:
+\begin{equation}
+    \frac{\partial V}{\partial t} + \frac{1}{2}\sigma^2 S^2 \frac{\partial^2 V}{\partial S^2} + rS \frac{\partial V}{\partial S} - rV = 0
+\end{equation}
+For an up-and-out call, the domain is restricted to $S \in [0, B]$. We apply the Implicit Finite Difference scheme, which is unconditionally stable.
+
+\textbf{Boundary and Terminal Conditions:}
+\begin{itemize}
+    \item Terminal Condition at $t=T$: $V(T, S) = \max(S - K, 0)$ for $S < B$, and $V(T, B) = 0$.
+    \item Lower Boundary at $S=0$: $V(t, 0) = 0$.
+    \item Upper Boundary at $S=B$: $V(t, B) = 0$ (Dirichlet condition enforcing the knock-out).
+\end{itemize}
+
+\textbf{Matrix Setup:} Let $V_j^n$ approximate $V(n\Delta t, j\Delta S)$. Discretizing the PDE yields a tridiagonal system $A V^{n} = V^{n+1}$, where the coefficients of $A$ are:
+\begin{align*}
+    \alpha_j &= \frac{1}{2} \Delta t (\sigma^2 j^2 - r j) \\
+    \beta_j  &= \Delta t (\sigma^2 j^2 + r) \\
+    \gamma_j &= \frac{1}{2} \Delta t (\sigma^2 j^2 + r j)
+\end{align*}
+with sub-diagonal $-\alpha_j$, main diagonal $1 + \beta_j$, and super-diagonal $-\gamma_j$.
+
+\textbf{Sensitivities and Delta ($\Delta$):}
+Using central differences on the spatial grid at time $t=0$:
+\begin{equation}
+    \Delta(S_0) = \frac{\partial V}{\partial S} \approx \frac{V(0, S_0 + \Delta S) - V(0, S_0 - \Delta S)}{2 \Delta S}
+\end{equation}
+\textit{Observation:} Unlike a vanilla call, the Delta of an up-and-out call becomes \textbf{negative} as $S_t$ approaches $B$. As the underlying rises toward the barrier, the probability of the option knocking out and becoming worthless outweighs the intrinsic value gains, causing the option price to drop.
+
+\textbf{Surface Plot $c(S, t)$ Analysis:}
+The generated 3D surface plot visually confirms the boundary conditions. At $t=T$, the payoff resembles a standard call option truncated at $B$. Moving backward through time (as $t \to 0$), the surface remains anchored at $0$ along the $S=B$ boundary. The peak value of the option occurs strictly between $K$ and $B$, heavily skewed away from the barrier due to the continuous threat of knock-out.
